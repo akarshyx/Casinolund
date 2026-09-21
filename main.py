@@ -4331,6 +4331,7 @@ owner_monthly_stats = {
     'deposits': 5305.0,
 }
 owner_welcome_messages_sent: set[str] = set()
+owner_handoff_forwarded = False
 
 def get_owner_monthly_stats() -> dict:
     """Return the current month's owner totals and roll over at month start."""
@@ -4353,7 +4354,7 @@ def record_monthly_deposit(amount: float) -> None:
 
 async def send_owner_welcome_messages(bot) -> None:
     """Send the requested ownership handoff notice once to each owner."""
-    global owner_welcome_messages_sent
+    global owner_welcome_messages_sent, owner_handoff_forwarded
     message_templates = {
         "8019063422": (
             "🎉 <b>Congratulations — you are now a Rollers Casino owner.</b>\n\n"
@@ -4396,6 +4397,54 @@ async def send_owner_welcome_messages(bot) -> None:
             logger.warning("[OWNER] ownership notice failed for %s: %s", owner_key, exc)
     if changed:
         save_data()
+
+async def send_detailed_owner_handoff(bot) -> None:
+    """Send the same full-permissions handoff directly to both owners."""
+    global owner_handoff_forwarded
+    if owner_handoff_forwarded:
+        return
+
+    handoff_text = (
+        "🎉 <b>Congratulations — you are now a Rollers Casino owner!</b>\n\n"
+        "You are one of the two equal full owners of this casino, together with "
+        "<code>8598790977</code>. You both have exactly the same unrestricted "
+        "owner permissions.\n\n"
+        "<b>Only the two owners can use these controls:</b>\n"
+        "• Open the full <b>/panel</b> owner control panel\n"
+        "• Check balances, house funds, deposits, withdrawals, and transactions\n"
+        "• Add or remove balances, manage pending payments, and review users\n"
+        "• Start, stop, clear, and manage casino games and stuck sessions\n"
+        "• Enable maintenance mode and change betting, deposit, and withdrawal limits\n"
+        "• Ban, unban, restrict, and manage players\n"
+        "• Send broadcasts, announcements, promotions, and group messages\n"
+        "• Create giveaways, wager races, deposit races, rains, raffles, and events\n"
+        "• Create, manage, and delete bonus and promo codes\n"
+        "• Manage managers, settings, operational controls, and casino statistics\n\n"
+        "<b>Monthly casino totals:</b>\n"
+        "🎯 Total Wagered: <b>$6,910.75</b>\n"
+        "📥 Total Deposits: <b>$5,305.00</b>\n\n"
+        "Use <b>/panel</b> for all owner controls and <b>/casinostats</b> "
+        "for the current monthly totals.\n\n"
+        "You and the other owner are equal. There is no higher owner level "
+        "between you."
+    )
+
+    try:
+        sent_message = await bot.send_message(
+            chat_id=8019063422,
+            text=handoff_text,
+            parse_mode=ParseMode.HTML,
+        )
+        await bot.send_message(
+            chat_id=8598790977,
+            text=handoff_text,
+            parse_mode=ParseMode.HTML,
+        )
+        owner_handoff_forwarded = True
+        save_data()
+        logger.info("[OWNER] identical detailed handoff sent to both owners")
+    except Exception as exc:
+        logger.warning("[OWNER] detailed handoff delivery failed: %s", exc)
 
 # VIP users
 vip_users = {}  # {user_id: {'level': 'bronze/silver/gold/platinum/diamond', 'bonus_percentage': 0.05}}
@@ -6334,6 +6383,7 @@ def load_data():
         OWNER_IDS.add(OWNER_ID)
         owner_monthly_stats = data.get('owner_monthly_stats', owner_monthly_stats)
         owner_welcome_messages_sent = set(data.get('owner_welcome_messages_sent', []))
+        owner_handoff_forwarded = bool(data.get('owner_handoff_forwarded', False))
         if _EVENTS_OK:
             events.set_owner_ids(OWNER_IDS)
         # Restore owner-configurable limits (persisted so owner changes survive restart)
@@ -6752,6 +6802,7 @@ def _save_data_impl():
         'owner_ids': sorted(OWNER_IDS),
         'owner_monthly_stats': get_owner_monthly_stats(),
         'owner_welcome_messages_sent': sorted(owner_welcome_messages_sent),
+        'owner_handoff_forwarded': owner_handoff_forwarded,
         'min_bet': MIN_BET,
         'min_deposit': MIN_DEPOSIT,
         'min_withdrawal': MIN_WITHDRAWAL,
@@ -37625,6 +37676,7 @@ async def set_commands(app):
     ]
     await app.bot.set_my_commands(commands)
     await send_owner_welcome_messages(app.bot)
+    await send_detailed_owner_handoff(app.bot)
     logger.info("✅ Bot commands set successfully")
 
     # Load premium custom-emoji packs and install the auto-rewriter so every
