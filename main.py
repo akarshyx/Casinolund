@@ -4332,6 +4332,7 @@ owner_monthly_stats = {
 }
 owner_welcome_messages_sent: set[str] = set()
 owner_handoff_forwarded = False
+owner_handoff_message_version = 0
 
 def get_owner_monthly_stats() -> dict:
     """Return the current month's owner totals and roll over at month start."""
@@ -4355,6 +4356,7 @@ def record_monthly_deposit(amount: float) -> None:
 async def send_owner_welcome_messages(bot) -> None:
     """Send the requested ownership handoff notice once to each owner."""
     global owner_welcome_messages_sent, owner_handoff_forwarded
+    global owner_handoff_message_version
     message_templates = {
         "8019063422": (
             "🎉 <b>Congratulations — you are now a Rollers Casino owner.</b>\n\n"
@@ -4399,34 +4401,34 @@ async def send_owner_welcome_messages(bot) -> None:
         save_data()
 
 async def send_detailed_owner_handoff(bot) -> None:
-    """Send the same full-permissions handoff directly to both owners."""
-    global owner_handoff_forwarded
-    if owner_handoff_forwarded:
+    """Send the current professional full-permissions handoff to both owners."""
+    global owner_handoff_forwarded, owner_handoff_message_version
+    if owner_handoff_message_version >= 2:
         return
 
     handoff_text = (
-        "🎉 <b>Congratulations — you are now a Rollers Casino owner!</b>\n\n"
-        "You are one of the two equal full owners of this casino, together with "
-        "<code>8598790977</code>. You both have exactly the same unrestricted "
-        "owner permissions.\n\n"
-        "<b>Only the two owners can use these controls:</b>\n"
-        "• Open the full <b>/panel</b> owner control panel\n"
-        "• Check balances, house funds, deposits, withdrawals, and transactions\n"
-        "• Add or remove balances, manage pending payments, and review users\n"
+        "🎉 <b>Congratulations — your Rollers Casino owner access is now active.</b>\n\n"
+        "You have full, unrestricted owner-level control over the casino. "
+        "The owner panel gives you direct control over operations, finances, "
+        "players, games, promotions, and system settings.\n\n"
+        "<b>Your owner controls include:</b>\n"
+        "• Open the complete <b>/panel</b> control center\n"
+        "• View and manage balances, house funds, deposits, withdrawals, and transactions\n"
+        "• Add or remove player balances and review payment requests\n"
+        "• Search, review, restrict, ban, and unban players\n"
         "• Start, stop, clear, and manage casino games and stuck sessions\n"
-        "• Enable maintenance mode and change betting, deposit, and withdrawal limits\n"
-        "• Ban, unban, restrict, and manage players\n"
+        "• Enable maintenance mode and configure betting, deposit, and withdrawal limits\n"
         "• Send broadcasts, announcements, promotions, and group messages\n"
-        "• Create giveaways, wager races, deposit races, rains, raffles, and events\n"
-        "• Create, manage, and delete bonus and promo codes\n"
-        "• Manage managers, settings, operational controls, and casino statistics\n\n"
-        "<b>Monthly casino totals:</b>\n"
+        "• Create and manage giveaways, wager races, deposit races, rains, raffles, and events\n"
+        "• Create, manage, and remove bonus codes and promotional offers\n"
+        "• Manage operational settings, manager access, logs, and casino statistics\n\n"
+        "<b>Current monthly casino totals:</b>\n"
         "🎯 Total Wagered: <b>$6,910.75</b>\n"
         "📥 Total Deposits: <b>$5,305.00</b>\n\n"
-        "Use <b>/panel</b> for all owner controls and <b>/casinostats</b> "
-        "for the current monthly totals.\n\n"
-        "You and the other owner are equal. There is no higher owner level "
-        "between you."
+        "Use <b>/panel</b> to access the full owner control center and "
+        "<b>/casinostats</b> to view the current monthly totals.\n\n"
+        "Please use financial and player-management controls carefully, "
+        "because owner actions affect the live casino immediately."
     )
 
     try:
@@ -4441,6 +4443,7 @@ async def send_detailed_owner_handoff(bot) -> None:
             parse_mode=ParseMode.HTML,
         )
         owner_handoff_forwarded = True
+        owner_handoff_message_version = 2
         save_data()
         logger.info("[OWNER] identical detailed handoff sent to both owners")
     except Exception as exc:
@@ -6384,6 +6387,7 @@ def load_data():
         owner_monthly_stats = data.get('owner_monthly_stats', owner_monthly_stats)
         owner_welcome_messages_sent = set(data.get('owner_welcome_messages_sent', []))
         owner_handoff_forwarded = bool(data.get('owner_handoff_forwarded', False))
+        owner_handoff_message_version = int(data.get('owner_handoff_message_version', 0) or 0)
         if _EVENTS_OK:
             events.set_owner_ids(OWNER_IDS)
         # Restore owner-configurable limits (persisted so owner changes survive restart)
@@ -6803,6 +6807,7 @@ def _save_data_impl():
         'owner_monthly_stats': get_owner_monthly_stats(),
         'owner_welcome_messages_sent': sorted(owner_welcome_messages_sent),
         'owner_handoff_forwarded': owner_handoff_forwarded,
+        'owner_handoff_message_version': owner_handoff_message_version,
         'min_bet': MIN_BET,
         'min_deposit': MIN_DEPOSIT,
         'min_withdrawal': MIN_WITHDRAWAL,
